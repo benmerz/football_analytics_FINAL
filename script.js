@@ -59,13 +59,7 @@
 
     $('print-btn').addEventListener('click', ()=>window.print());
 
-    $('reset-btn').addEventListener('click', ()=>{
-      if(confirm('Reset the page to defaults and clear localStorage?')){
-        localStorage.removeItem(KEY);
-        applyState(defaultState);
-        save();
-      }
-    });
+    // Reset feature removed per request
   }
 
   function buildHtmlPackage(){

@@ -1,6 +1,9 @@
 // Small helper
 function $(id){ return document.getElementById(id); }
 
+// Shared dashboard state
+let dashboardRows = [];
+
 // Detect which page we are on and initialize the appropriate logic.
 document.addEventListener('DOMContentLoaded', () => {
   if ($('project-title') && $('content')) {
@@ -128,11 +131,14 @@ async function initDraftDashboard(){
     const rows = await loadCsv('data.csv');
     if (!rows || !rows.length) return;
 
+    dashboardRows = rows;
+
     const stats = computeStats(rows);
     renderKpis(stats);
     renderTable(stats.byCollege, 'table-by-college', 'college');
     renderTable(stats.byPosition, 'table-by-position', 'position');
     renderTimeline(stats.hofPlayers);
+    renderPickChart(buildPickSeries(rows));
     populateSeasonSelect(stats.seasonsSorted);
   } catch (e) {
     console.error('Failed to initialize dashboard', e);
@@ -237,6 +243,196 @@ function computeStats(rows){
   };
 }
 
+function buildPickSeries(rows){
+  const perSeason = new Map();
+
+  for (const row of rows){
+    if ((row.player || '').startsWith('Carl Eller')) continue;
+
+    const season = row.season;
+    if (!season) continue;
+
+    if (!perSeason.has(season)){
+      perSeason.set(season, { season, pick: null, player: null, noPick: false });
+    }
+    const entry = perSeason.get(season);
+
+    const pickRaw = (row.pick_overall || '').trim();
+    if (!pickRaw) continue;
+
+    if (pickRaw.toLowerCase() === 'no pick'){
+      if (entry.pick == null){
+        entry.noPick = true;
+      }
+      continue;
+    }
+
+    const n = parseInt(pickRaw, 10);
+    if (!Number.isNaN(n)){
+      if (entry.pick == null || n < entry.pick){
+        entry.pick = n;
+        entry.player = row.player;
+        entry.noPick = false;
+      }
+    }
+  }
+
+  return Array.from(perSeason.values()).sort((a,b)=> Number(a.season) - Number(b.season));
+}
+
+function renderPickChart(series){
+  const container = document.getElementById('pick-chart');
+  if (!container || !series || !series.length) return;
+
+  container.innerHTML = '';
+
+  const width = container.clientWidth || 640;
+  const height = container.clientHeight || 260;
+  const margin = { top: 20, right: 16, bottom: 28, left: 32 };
+  const innerW = width - margin.left - margin.right;
+  const innerH = height - margin.top - margin.bottom;
+
+  const seasons = series.map(d => Number(d.season));
+  const minSeason = Math.min(...seasons);
+  const maxSeason = Math.max(...seasons);
+
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(svgNS, 'svg');
+  svg.setAttribute('class', 'chart-svg');
+  svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+
+  const g = document.createElementNS(svgNS, 'g');
+  svg.appendChild(g);
+
+  const xFor = (seasonNum) => {
+    if (maxSeason === minSeason) return margin.left + innerW / 2;
+    return margin.left + ((seasonNum - minSeason) / (maxSeason - minSeason)) * innerW;
+  };
+  const yForPick = (pick) => {
+    const minPick = 1;
+    const maxPick = 32;
+    const t = (pick - minPick) / (maxPick - minPick);
+    return margin.top + t * innerH;
+  };
+  const yNoPick = margin.top - 4; // slightly above chart; visually distinct
+
+  const axisX = document.createElementNS(svgNS, 'line');
+  axisX.setAttribute('x1', margin.left);
+  axisX.setAttribute('y1', margin.top + innerH);
+  axisX.setAttribute('x2', margin.left + innerW);
+  axisX.setAttribute('y2', margin.top + innerH);
+  axisX.setAttribute('class', 'chart-axis');
+  g.appendChild(axisX);
+
+  const axisY = document.createElementNS(svgNS, 'line');
+  axisY.setAttribute('x1', margin.left);
+  axisY.setAttribute('y1', margin.top);
+  axisY.setAttribute('x2', margin.left);
+  axisY.setAttribute('y2', margin.top + innerH);
+  axisY.setAttribute('class', 'chart-axis');
+  g.appendChild(axisY);
+
+  [1,8,16,24,32].forEach(pick => {
+    const y = yForPick(pick);
+    const tick = document.createElementNS(svgNS, 'line');
+    tick.setAttribute('x1', margin.left);
+    tick.setAttribute('y1', y);
+    tick.setAttribute('x2', margin.left + innerW);
+    tick.setAttribute('y2', y);
+    tick.setAttribute('class', 'chart-tick');
+    g.appendChild(tick);
+
+    const label = document.createElementNS(svgNS, 'text');
+    label.setAttribute('x', margin.left - 6);
+    label.setAttribute('y', y + 3);
+    label.setAttribute('text-anchor', 'end');
+    label.setAttribute('font-size', '9');
+    label.setAttribute('fill', '#4b5563');
+    label.textContent = pick;
+    g.appendChild(label);
+  });
+
+  const yearStep = Math.max(1, Math.round(series.length / 10));
+  series.forEach((d, idx) => {
+    const seasonNum = Number(d.season);
+    const x = xFor(seasonNum);
+
+    if (idx % yearStep === 0) {
+      const label = document.createElementNS(svgNS, 'text');
+      label.setAttribute('x', x);
+      label.setAttribute('y', margin.top + innerH + 14);
+      label.setAttribute('text-anchor', 'middle');
+      label.setAttribute('font-size', '9');
+      label.setAttribute('fill', '#4b5563');
+      label.textContent = d.season;
+      g.appendChild(label);
+    }
+  });
+
+  const tooltip = document.createElement('div');
+  tooltip.className = 'chart-tooltip';
+  tooltip.style.display = 'none';
+  container.appendChild(tooltip);
+
+  function showTooltip(text, clientX, clientY){
+    tooltip.textContent = text;
+    tooltip.style.display = 'block';
+    const rect = container.getBoundingClientRect();
+    const x = clientX - rect.left + 8;
+    const y = clientY - rect.top - 28;
+    tooltip.style.left = `${x}px`;
+    tooltip.style.top = `${y}px`;
+  }
+  function hideTooltip(){
+    tooltip.style.display = 'none';
+  }
+
+  series.forEach(d => {
+    const seasonNum = Number(d.season);
+    const x = xFor(seasonNum);
+
+    if (d.pick != null){
+      const y = yForPick(d.pick);
+      const circle = document.createElementNS(svgNS, 'circle');
+      circle.setAttribute('cx', x);
+      circle.setAttribute('cy', y);
+      circle.setAttribute('r', 4);
+      circle.setAttribute('class', 'chart-point');
+      circle.addEventListener('mouseenter', (evt)=>{
+        const text = `Season ${d.season} — Pick ${d.pick}${d.player ? ' — ' + d.player : ''}`;
+        showTooltip(text, evt.clientX, evt.clientY);
+      });
+      circle.addEventListener('mouseleave', hideTooltip);
+      g.appendChild(circle);
+    } else if (d.noPick){
+      const group = document.createElementNS(svgNS, 'g');
+      const size = 6;
+      const line1 = document.createElementNS(svgNS, 'line');
+      line1.setAttribute('x1', x - size);
+      line1.setAttribute('y1', yNoPick - size);
+      line1.setAttribute('x2', x + size);
+      line1.setAttribute('y2', yNoPick + size);
+      line1.setAttribute('class', 'chart-no-pick');
+      const line2 = document.createElementNS(svgNS, 'line');
+      line2.setAttribute('x1', x - size);
+      line2.setAttribute('y1', yNoPick + size);
+      line2.setAttribute('x2', x + size);
+      line2.setAttribute('y2', yNoPick - size);
+      line2.setAttribute('class', 'chart-no-pick');
+      group.appendChild(line1);
+      group.appendChild(line2);
+      group.addEventListener('mouseenter', (evt)=>{
+        const text = `Season ${d.season} — No first‑round pick`;
+        showTooltip(text, evt.clientX, evt.clientY);
+      });
+      group.addEventListener('mouseleave', hideTooltip);
+      g.appendChild(group);
+    }
+  });
+
+  container.appendChild(svg);
+}
+
 function renderKpis(stats){
   const fmt = (n) => n.toLocaleString();
   $('kpi-hof').innerText = fmt(stats.hofTotal);
@@ -259,6 +455,8 @@ function renderTable(items, tableId, labelKey){
     tdCount.textContent = row.count;
     tr.appendChild(tdLabel);
     tr.appendChild(tdCount);
+    tr.style.cursor = 'pointer';
+    tr.addEventListener('click', () => handleDimensionClick(labelKey, row.label));
     tbody.appendChild(tr);
   });
 }
@@ -272,8 +470,119 @@ function renderTimeline(hofPlayers){
     const chip = document.createElement('div');
     chip.className = 'chip';
     chip.innerHTML = `<span class="chip-year">${p.season}</span><span class="chip-name">${p.player}</span>`;
+    chip.style.cursor = 'pointer';
+    chip.addEventListener('click', () => handleHofClick(p));
     container.appendChild(chip);
   });
+}
+
+function handleDimensionClick(type, key){
+  if (!dashboardRows || !dashboardRows.length) return;
+
+  const rows = dashboardRows.filter(r => {
+    if ((r.player || '').startsWith('Carl Eller')) return false;
+    const pickRaw = (r.pick_overall || '').trim();
+    if (!pickRaw || pickRaw.toLowerCase() === 'no pick') return false;
+
+    if (type === 'college') return (r.college || '').trim() === key;
+    if (type === 'position') return (r.position || '').trim() === key;
+    return false;
+  });
+
+  if (!rows.length) return;
+
+  renderInlineDetail(type, rows, key);
+}
+
+function handleHofClick(playerInfo){
+  if (!dashboardRows || !dashboardRows.length) return;
+
+  const rows = dashboardRows.filter(r => {
+    if ((r.player || '').startsWith('Carl Eller')) return false;
+    const pickRaw = (r.pick_overall || '').trim();
+    if (!pickRaw || pickRaw.toLowerCase() === 'no pick') return false;
+    const hof = Number(r.hall_of_fame || '0') === 1;
+    if (!hof) return false;
+    const samePlayer = (r.player || '').trim() === (playerInfo.player || '').trim();
+    const sameSeason = (r.season || '').trim() === String(playerInfo.season || '').trim();
+    return samePlayer && sameSeason;
+  });
+
+  if (!rows.length) return;
+
+  const title = `Hall of Fame — ${playerInfo.player}`;
+  const subtitle = `Season ${playerInfo.season} · First‑round pick`;
+  renderDetailCard(rows, title, subtitle);
+}
+
+function renderInlineDetail(type, rows, key){
+  const isCollege = type === 'college';
+  const wrapId = isCollege ? 'college-detail' : 'position-detail';
+  const subtitleId = isCollege ? 'college-detail-subtitle' : 'position-detail-subtitle';
+  const tableSelector = isCollege ? '#college-detail-table tbody' : '#position-detail-table tbody';
+
+  const wrap = document.getElementById(wrapId);
+  const subtitleEl = document.getElementById(subtitleId);
+  const tbody = document.querySelector(tableSelector);
+  if (!wrap || !tbody) return;
+
+  const label = key || '';
+  const base = isCollege ? `from ${label}` : `at ${label}`;
+  subtitleEl.textContent = `${rows.length} first‑round pick(s) ${base}`;
+
+  tbody.innerHTML = '';
+  rows.forEach(row => {
+    const tr = document.createElement('tr');
+    const hof = Number(row.hall_of_fame || '0') === 1 ? 'Yes' : 'No';
+
+    const cells = isCollege
+      ? [row.season, row.pick_overall, row.player, row.position, row.notes, hof]
+      : [row.season, row.pick_overall, row.player, row.college, row.notes, hof];
+
+    cells.forEach(text => {
+      const td = document.createElement('td');
+      td.textContent = text || '';
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+
+  wrap.hidden = false;
+}
+
+function renderDetailCard(rows, title, subtitle){
+  const card = document.getElementById('detail-card');
+  const titleEl = document.getElementById('detail-title');
+  const subtitleEl = document.getElementById('detail-subtitle');
+  const tbody = document.querySelector('#detail-table tbody');
+  const closeBtn = document.getElementById('detail-close');
+
+  if (!card || !tbody) return;
+
+  titleEl.textContent = title;
+  subtitleEl.textContent = subtitle || '';
+
+  tbody.innerHTML = '';
+  rows.forEach(row => {
+    const tr = document.createElement('tr');
+    const hof = Number(row.hall_of_fame || '0') === 1 ? 'Yes' : 'No';
+
+    [row.season, row.pick_overall, row.player, row.position, row.college, row.notes, hof].forEach(text => {
+      const td = document.createElement('td');
+      td.textContent = text || '';
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+
+  card.hidden = false;
+
+  if (closeBtn && !closeBtn._bound){
+    closeBtn.addEventListener('click', () => {
+      card.hidden = true;
+    });
+    closeBtn._bound = true;
+  }
 }
 
 async function initSeasonPage(){
@@ -293,7 +602,11 @@ async function initSeasonPage(){
 
   try {
     const rows = await loadCsv('data.csv');
-    const filtered = rows.filter(r => r.season === season && (r.pick_overall || '').trim().toLowerCase() !== 'no pick');
+    const filtered = rows.filter(r =>
+      r.season === season &&
+      (r.pick_overall || '').trim().toLowerCase() !== 'no pick' &&
+      !(r.player || '').startsWith('Carl Eller')
+    );
 
     if (summaryEl) {
       if (!season) {
@@ -312,7 +625,7 @@ async function initSeasonPage(){
       const tr = document.createElement('tr');
       const hof = Number(row.hall_of_fame || '0') === 1 ? 'Yes' : 'No';
 
-      [row.pick_overall, row.player, row.position, row.college, hof].forEach(text => {
+      [row.pick_overall, row.player, row.position, row.college, row.notes, hof].forEach(text => {
         const td = document.createElement('td');
         td.textContent = text || '';
         tr.appendChild(td);

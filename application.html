@@ -54,6 +54,22 @@
             </thead>
             <tbody></tbody>
           </table>
+          <div class="inline-detail" id="college-detail" hidden>
+            <p class="subcopy" id="college-detail-subtitle"></p>
+            <table class="stat-table" id="college-detail-table">
+              <thead>
+                <tr>
+                  <th>Season</th>
+                  <th>Pick</th>
+                  <th>Player</th>
+                  <th>Position</th>
+                  <th>Notes</th>
+                  <th>Hall of Fame</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
         </section>
 
         <section class="subcard">
@@ -65,13 +81,57 @@
             </thead>
             <tbody></tbody>
           </table>
+          <div class="inline-detail" id="position-detail" hidden>
+            <p class="subcopy" id="position-detail-subtitle"></p>
+            <table class="stat-table" id="position-detail-table">
+              <thead>
+                <tr>
+                  <th>Season</th>
+                  <th>Pick</th>
+                  <th>Player</th>
+                  <th>College</th>
+                  <th>Notes</th>
+                  <th>Hall of Fame</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
         </section>
       </div>
+
+      <section class="subcard">
+        <h3>Round 1 Draft Position Over Time</h3>
+        <p class="subcopy">Each point shows the Bills' first‑round draft slot by season. Crosses mark seasons with no first‑round pick.</p>
+        <div id="pick-chart" class="chart-container"></div>
+      </section>
 
       <section class="subcard timeline">
         <h3>Hall of Fame Timeline</h3>
         <p class="subcopy">First‑round picks marked as Hall of Famers, by season.</p>
         <div id="hof-timeline" class="chip-row"></div>
+      </section>
+
+      <section class="subcard detail-card" id="detail-card" hidden>
+        <div class="detail-header">
+          <h3 id="detail-title">Players</h3>
+          <button type="button" id="detail-close" aria-label="Close player details">×</button>
+        </div>
+        <p class="subcopy" id="detail-subtitle"></p>
+        <table class="stat-table" id="detail-table">
+          <thead>
+            <tr>
+              <th>Season</th>
+              <th>Pick</th>
+              <th>Player</th>
+              <th>Position</th>
+              <th>College</th>
+              <th>Notes</th>
+              <th>Hall of Fame</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
       </section>
     </section>
   </main>

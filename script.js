@@ -23,10 +23,97 @@ document.addEventListener('DOMContentLoaded', () => {
 // Landing report page
 // ----------------------
 function initReportPage(){
-  const KEY = 'project_report_simple_v1';
+  const KEY = 'project_report_simple_v2';
   const defaultState = {
     title: 'Football Analytics — Project Report',
-    content: 'Welcome — use this single document area to describe your project, plans, notes, and progress. Edit freely; changes are autosaved locally.'
+    content: '1. Overview\n\n' +
+      "This project analyzes the Buffalo Bills' first-round draft picks from 1960 to the present. " +
+      'My objective is to display info about which colleges have supplied the most Bills first-rounders, which positions the team has prioritized, how often picks became Hall of Famers, and how draft position has changed over time. The links to the application (Open Application ->) and View in Repository are at the top of this page.\n\n' +
+      '2. Web Scraping\n\n' +
+      'Data Source:\n' +
+      'I scraped the main dataset from the Wikipedia page:\n' +
+      'https://en.wikipedia.org/wiki/List_of_Buffalo_Bills_first-round_draft_picks\n\n' +
+      'This page was chosen because it contains a single, well-structured table with every Bills first-round pick, including season, overall pick, player, position, college, and notes about trades.\n\n' +
+      'Tools Used:\n' +
+      '- Python requests for the HTTP GET request.\n' +
+      '- BeautifulSoup from bs4 to parse the HTML and walk the draft table.\n\n' +
+      'Snippet of the code found in script.py:\n\n' +
+      'import requests\n' +
+      'from bs4 import BeautifulSoup\n' +
+      'import sqlite3\n' +
+      'from pathlib import Path\n\n' +
+      'def scrape_bills_draft_picks():\n' +
+      '    url = "https://en.wikipedia.org/wiki/List_of_Buffalo_Bills_first-round_draft_picks"\n' +
+      '    \n' +
+      '    # Simple User Agent to identify as a standard browser\n' +
+      "    headers = {\n" +
+      "        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'\n" +
+      '    }\n' +
+      '    \n' +
+      '    response = requests.get(url, headers=headers)\n' +
+      "    soup = BeautifulSoup(response.content, 'html.parser')\n\n" +
+      "    # Locate the table (specifically the sortable wikitable)\n" +
+      "    table = soup.find('table', {'class': 'wikitable sortable'})\n" +
+      "    rows = table.find_all('tr')\n\n" +
+      'AI prompt used\n' +
+      '"Write a Python function that uses requests and BeautifulSoup to scrape all Buffalo Bills first-round draft picks from this Wikipedia page: https://en.wikipedia.org/wiki/List_of_Buffalo_Bills_first-round_draft_picks. Return a list of dictionaries with the keys: Season, Pick, Player, Position, College, Notes. Use a simple user agent"\n\n' +
+      '3. Database\n\n' +
+      'After scraping, I stored the cleaned data in a local SQLite database bills_draft.db. The main table is:\n\n' +
+      'Table: bills_first_round_picks\n' +
+      '- id INTEGER PRIMARY KEY AUTOINCREMENT\n' +
+      '- season TEXT\n' +
+      '- pick_overall TEXT\n' +
+      '- player TEXT\n' +
+      '- position TEXT\n' +
+      '- college TEXT\n' +
+      '- notes TEXT\n\n' +
+      'From this table I exported a CSV file used by the web app:\n\n' +
+      'File: data.csv\n' +
+      'Columns:\n' +
+      '- id\n' +
+      '- season\n' +
+      '- pick_overall\n' +
+      '- player\n' +
+      '- position\n' +
+      '- college\n' +
+      '- notes\n' +
+      '- hall_of_fame (1 if marked as Hall of Famer, 0 otherwise)\n' +
+      '- college_player_count (count of picks from that college)\n' +
+      '- position_player_count (count of picks at that position)\n\n' +
+      'Sample SQL queries used in analysis:\n\n' +
+      "-- Flag Hall of Fame players based on last character by a player's name, since a cross is used by wiki to indicate a hall of famer.\n" +
+      'SELECT\n' +
+      '*,\n' +
+      "CASE WHEN player GLOB '*[^A-Za-z*]' THEN 1 ELSE 0 END AS hall_of_fame\n" +
+      'FROM bills_first_round_picks;\n\n' +
+      '-- Players by college\n' +
+      'SELECT\n' +
+      'college,\n' +
+      'COUNT(*) AS total_players_from_college\n' +
+      'FROM bills_first_round_picks\n' +
+      'GROUP BY college\n' +
+      'ORDER BY total_players_from_college DESC, college;\n\n' +
+      '-- Players by position\n' +
+      'SELECT\n' +
+      'position,\n' +
+      'COUNT(*) AS position_player_count\n' +
+      'FROM bills_first_round_picks\n' +
+      'GROUP BY position\n' +
+      'ORDER BY position_player_count DESC, position;\n\n' +
+      '-- All metrics together\n' +
+      'SELECT\n' +
+      '*,\n' +
+      "CASE WHEN player GLOB '*[^A-Za-z*]' THEN 1 ELSE 0 END AS hall_of_fame,\n" +
+      'COUNT(*) OVER (PARTITION BY college) AS college_player_count,\n' +
+      'COUNT(*) OVER (PARTITION BY position) AS position_player_count\n' +
+      'FROM bills_first_round_picks;\n\n' +
+      '4. Web Application\n\n' +
+      'Application Page (Bills First Round Draft Picks)\n' +
+      '- Shows a "Franchise Round 1 Draft Snapshot" with four categories: Hall of Fame Players, Distinct Colleges, Distinct Positions, and Total First-Round Picks\n' +
+      '- Displays two interactive tables: Players by College and Players by Position. Clicking a college or position shows the detailed list of Bills first-round picks directly below the table.\n' +
+      '- There is a scatter chart with Season on the x-axis and draft pick number (1–32) on the y-axis. Red X markers indicate seasons when the Bills had no first-round pick.\n' +
+      'When a season is chosen from the dropdown on the application page, the app navigates to a season detail view.\n' +
+      '- That page lists all first-round picks for the chosen year along with their notes and Hall of Fame indicator.\n'
   };
 
   // Debounce helper
@@ -41,8 +128,12 @@ function initReportPage(){
     try{
       const raw = localStorage.getItem(KEY);
       if(raw){
-        const state = JSON.parse(raw);
-        applyState(state);
+        const state = JSON.parse(raw) || {};
+        const merged = {
+          title: state.title && state.title.trim() ? state.title : defaultState.title,
+          content: state.content && state.content.trim() ? state.content : defaultState.content
+        };
+        applyState(merged);
         return;
       }
     }catch(e){ console.warn('load failed', e); }

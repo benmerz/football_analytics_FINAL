@@ -22,7 +22,115 @@
   <main>
     <section class="card single-editor">
       <div id="content" class="editable" contenteditable="true">
-        Welcome — use this single document area to describe your project, plans, notes, and progress. Edit freely; changes are autosaved locally.
+        1. Overview
+
+This project analyzes the Buffalo Bills' first-round draft picks from 1960 to the present. My objective is to display info about which colleges have supplied the most Bills first-rounders, which positions the team has prioritized, how often picks became Hall of Famers, and how draft position has changed over time. The links to the application (Open Application ->) and View in Repository are at the top of this page.
+
+2. Web Scraping
+
+Data Source:
+I scraped the main dataset from the Wikipedia page:
+https://en.wikipedia.org/wiki/List_of_Buffalo_Bills_first-round_draft_picks
+
+This page was chosen because it contains a single, well-structured table with every Bills first-round pick, including season, overall pick, player, position, college, and notes about trades.
+
+Tools Used:
+- Python requests for the HTTP GET request.
+- BeautifulSoup from bs4 to parse the HTML and walk the draft table.
+
+Snippet of the code found in script.py:
+
+import requests
+from bs4 import BeautifulSoup
+import sqlite3
+from pathlib import Path
+
+def scrape_bills_draft_picks():
+    url = "https://en.wikipedia.org/wiki/List_of_Buffalo_Bills_first-round_draft_picks"
+    
+    # Simple User Agent to identify as a standard browser
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+    }
+    
+    response = requests.get(url, headers=headers)
+    soup = BeautifulSoup(response.content, 'html.parser')
+    
+    # Locate the table (specifically the sortable wikitable)
+    table = soup.find('table', {'class': 'wikitable sortable'})
+    rows = table.find_all('tr')
+
+AI prompt used
+"Write a Python function that uses requests and BeautifulSoup to scrape all Buffalo Bills first-round draft picks from this Wikipedia page: https://en.wikipedia.org/wiki/List_of_Buffalo_Bills_first-round_draft_picks. Return a list of dictionaries with the keys: Season, Pick, Player, Position, College, Notes. Use a simple user agent"
+
+3. Database
+
+After scraping, I stored the cleaned data in a local SQLite database bills_draft.db. The main table is:
+
+Table: bills_first_round_picks
+- id INTEGER PRIMARY KEY AUTOINCREMENT
+- season TEXT
+- pick_overall TEXT
+- player TEXT
+- position TEXT
+- college TEXT
+- notes TEXT
+
+From this table I exported a CSV file used by the web app:
+
+File: data.csv
+Columns:
+- id
+- season
+- pick_overall
+- player
+- position
+- college
+- notes
+- hall_of_fame (1 if marked as Hall of Famer, 0 otherwise)
+- college_player_count (count of picks from that college)
+- position_player_count (count of picks at that position)
+
+Sample SQL queries used in analysis:
+
+-- Flag Hall of Fame players based on last character by a player's name, since a cross is used by wiki to indicate a hall of famer. 
+SELECT
+*,
+CASE WHEN player GLOB '*[^A-Za-z*]' THEN 1 ELSE 0 END AS hall_of_fame
+FROM bills_first_round_picks;
+
+-- Players by college
+SELECT
+college,
+COUNT(*) AS total_players_from_college
+FROM bills_first_round_picks
+GROUP BY college
+ORDER BY total_players_from_college DESC, college;
+
+-- Players by position
+SELECT
+position,
+COUNT(*) AS position_player_count
+FROM bills_first_round_picks
+GROUP BY position
+ORDER BY position_player_count DESC, position;
+
+-- All metrics together
+SELECT
+*,
+CASE WHEN player GLOB '*[^A-Za-z*]' THEN 1 ELSE 0 END AS hall_of_fame,
+COUNT(*) OVER (PARTITION BY college) AS college_player_count,
+COUNT(*) OVER (PARTITION BY position) AS position_player_count
+FROM bills_first_round_picks;
+
+4. Web Application
+
+Application Page (Bills First Round Draft Picks)
+- Shows a "Franchise Round 1 Draft Snapshot" with four categories: Hall of Fame Players, Distinct Colleges, Distinct Positions, and Total First-Round Picks
+- Displays two interactive tables: Players by College and Players by Position. Clicking a college or position shows the detailed list of Bills first-round picks directly below the table.
+- There is a scatter chart with Season on the x-axis and draft pick number (1–32) on the y-axis. Red X markers indicate seasons when the Bills had no first-round pick.
+When a season is chosen from the dropdown on the application page, the app navigates to a season detail view.
+- That page lists all first-round picks for the chosen year along with their notes and Hall of Fame indicator.
       </div>
     </section>
   </main>

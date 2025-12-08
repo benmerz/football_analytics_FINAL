@@ -8,18 +8,76 @@
 </head>
 <body>
   <header class="topbar">
-    <h1>Application</h1>
+    <h1>Bills First Round Draft Picks</h1>
     <div class="controls">
       <a href="index.html" class="btn-link" aria-label="Back to Report">← Back to Report</a>
     </div>
   </header>
   <main>
-    <section class="card">
-      <!-- Intentionally left blank for now -->
+    <section class="card dashboard">
+      <div class="season-bar">
+        <h2 class="section-title">Franchise Round 1 Draft Snapshot</h2>
+        <div class="season-picker">
+          <label for="season-select">Jump to season:</label>
+          <select id="season-select">
+            <option value="">All seasons…</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-label">Hall of Fame Players</div>
+          <div class="kpi-value" id="kpi-hof">-</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Distinct Colleges</div>
+          <div class="kpi-value" id="kpi-colleges">-</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Distinct Positions</div>
+          <div class="kpi-value" id="kpi-positions">-</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Total First-Round Picks</div>
+          <div class="kpi-value" id="kpi-total">-</div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <section class="subcard">
+          <h3>Players by College</h3>
+          <p class="subcopy">Which schools have supplied the most Bills first‑rounders?</p>
+          <table class="stat-table" id="table-by-college">
+            <thead>
+              <tr><th>College</th><th>Players</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </section>
+
+        <section class="subcard">
+          <h3>Players by Position</h3>
+          <p class="subcopy">How the Bills have invested their premium picks by position.</p>
+          <table class="stat-table" id="table-by-position">
+            <thead>
+              <tr><th>Position</th><th>Players</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </section>
+      </div>
+
+      <section class="subcard timeline">
+        <h3>Hall of Fame Timeline</h3>
+        <p class="subcopy">First‑round picks marked as Hall of Famers, by season.</p>
+        <div id="hof-timeline" class="chip-row"></div>
+      </section>
     </section>
   </main>
   <footer class="footer">
     <small><a href="index.html">Return to Project Report</a></small>
   </footer>
+  <script src="script.js"></script>
 </body>
 </html>
